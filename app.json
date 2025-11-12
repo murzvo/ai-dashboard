@@ -1,0 +1,40 @@
+{
+  "name": "AI Dashboard",
+  "description": "A dashboard that aggregates 3rd party apps using AI-generated widgets",
+  "repository": "https://github.com/yourusername/ai_dashboard",
+  "keywords": ["python", "fastapi", "dashboard", "ai", "claude"],
+  "env": {
+    "MONGODB_URI": {
+      "description": "MongoDB connection string (use MongoDB Atlas for Heroku)",
+      "required": true
+    },
+    "MONGODB_DB_NAME": {
+      "description": "MongoDB database name",
+      "value": "ai_dashboard"
+    },
+    "ANTHROPIC_API_KEY": {
+      "description": "Anthropic Claude API key",
+      "required": true
+    },
+    "REGISTRATION_TOKEN": {
+      "description": "Token for app registration",
+      "generator": "secret"
+    },
+    "WIDGET_REFRESH_INTERVAL": {
+      "description": "Widget refresh interval in milliseconds",
+      "value": "30000"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "free"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
+

@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .dashboard-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dashboard-header h1 {
+            color: #333;
+            margin: 0;
+        }
+
+        .create-widget-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .create-widget-btn:hover {
+            background: #1976D2;
+        }
+
+        .dashboard-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-start; /* Align widgets at top */
+            overflow: visible; /* Allow widgets to show full content */
+        }
+
+        .widget-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: visible; /* Show full widget content - no clipping */
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            /* Width constraints - size to content but respect max */
+            flex: 0 0 auto; /* Don't grow or shrink, use content size */
+            min-width: 250px; /* Minimum width to prevent too small widgets */
+            max-width: calc(33.333% - 14px); /* Max 3 widgets per row (accounting for gap) */
+            width: auto; /* Size to content naturally */
+            /* CSS Isolation - prevent widget styles from affecting parent */
+            contain: layout style paint;
+            isolation: isolate;
+        }
+        
+        /* Widget content isolation - prevent styles from leaking out */
+        .widget-content {
+            width: 100%;
+            overflow: visible; /* Show full content */
+            /* Create new stacking context for isolation */
+            position: relative;
+            z-index: 0;
+            /* CSS containment to isolate styles and layout */
+            contain: layout style paint;
+            /* Prevent style inheritance conflicts */
+            isolation: isolate;
+        }
+        
+        /* Ensure widget content styles don't leak out */
+        .widget-content * {
+            box-sizing: border-box;
+        }
+        
+        /* Override any global styles that might affect widgets */
+        .widget-content h1,
+        .widget-content h2,
+        .widget-content h3,
+        .widget-content h4,
+        .widget-content h5,
+        .widget-content h6 {
+            margin: 0;
+            font-weight: inherit;
+        }
+        
+        .widget-content p {
+            margin: 0;
+        }
+        
+        .widget-content ul,
+        .widget-content ol {
+            margin: 0;
+            padding-left: 0;
+        }
+        
+        /* Prevent widget button/link styles from affecting dashboard */
+        .widget-content button,
+        .widget-content a {
+            font-family: inherit;
+        }
+
+        .widget-header {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            flex-shrink: 0; /* Don't shrink header */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            /* Prevent widget styles from affecting header */
+            position: relative;
+            z-index: 1;
+        }
+
+        .widget-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .widget-container:hover .widget-actions {
+            opacity: 1;
+        }
+
+        .widget-action-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            color: #666;
+            font-size: 14px;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .widget-action-btn.refresh-full {
+            color: #2196F3;
+        }
+
+        .widget-action-btn:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .widget-action-btn.edit {
+            color: #2196F3;
+        }
+
+        .widget-action-btn.delete {
+            color: #f44336;
+        }
+
+        .widget-action-btn.refresh {
+            color: #4CAF50;
+        }
+
+        /* Widget content styles moved above */
+        
+        /* Fix for empty widgets - ensure content displays */
+        .widget-content:empty::after {
+            content: "Loading...";
+            color: #999;
+            font-style: italic;
+        }
+        
+        /* Widgets size to their content - no height constraints */
+
+        .widget-placeholder {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+        }
+
+        .widget-placeholder h3 {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-body label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .modal-body textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .modal-btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .modal-btn-primary:hover:not(:disabled) {
+            background: #1976D2;
+        }
+
+        .modal-btn-primary:disabled {
+            background: #90CAF9;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .modal-btn-secondary:disabled {
+            background: #e0e0e0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .modal-btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        /* Responsive width constraints */
+        @media (min-width: 1200px) {
+            .widget-container {
+                max-width: calc(25% - 15px); /* Max 4 widgets per row on large screens */
+            }
+        }
+        
+        @media (min-width: 900px) and (max-width: 1199px) {
+            .widget-container {
+                max-width: calc(33.333% - 14px); /* Max 3 widgets per row */
+            }
+        }
+        
+        @media (min-width: 600px) and (max-width: 899px) {
+            .widget-container {
+                max-width: calc(50% - 10px); /* Max 2 widgets per row */
+            }
+        }
+        
+        @media (max-width: 599px) {
+            .dashboard-grid {
+                flex-direction: column;
+            }
+
+            .widget-container {
+                width: 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1>AI Dashboard</h1>
+        <button class="create-widget-btn" onclick="openCreateModal()">+ Create Widget</button>
+    </div>
+
+    <!-- Store widget prompts data -->
+    <script type="application/json" id="widget-prompts-data">
+    {
+        {% set user_widgets = widgets|selectattr('is_user_created')|list %}
+        {% for widget in user_widgets %}
+        "{{ widget.widget_id }}": {{ widget.prompt|tojson }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    }
+    </script>
+
+    <div class="dashboard-grid" id="dashboardGrid">
+        {% for widget in widgets %}
+        <div class="widget-container" 
+             data-app-id="{{ widget.app_id if widget.app_id else '' }}"
+             data-widget-id="{{ widget.widget_id if widget.widget_id else '' }}"
+             data-widget-name="{{ widget.app_name }}"
+             data-is-user-created="{{ widget.is_user_created|lower }}">
+            <div class="widget-header">
+                <span>{{ widget.app_name }}</span>
+                {% if widget.is_user_created %}
+                <div class="widget-actions">
+                    <button class="widget-action-btn edit" 
+                            data-widget-id="{{ widget.widget_id }}" 
+                            onclick="openEditModal(this)" 
+                            title="Edit">✏️</button>
+                    <button class="widget-action-btn refresh" 
+                            onclick="refreshUserWidget('{{ widget.widget_id }}')" 
+                            title="Refresh (keep styles)">🔄</button>
+                    <button class="widget-action-btn refresh-full" 
+                            onclick="fullRefreshUserWidget('{{ widget.widget_id }}')" 
+                            title="Full Refresh (new design)">🔄✨</button>
+                    <button class="widget-action-btn delete" 
+                            onclick="deleteUserWidget('{{ widget.widget_id }}')" 
+                            title="Delete">🗑️</button>
+                </div>
+                {% else %}
+                <div class="widget-actions">
+                    <button class="widget-action-btn refresh" 
+                            onclick="refreshAppWidget('{{ widget.app_id }}')" 
+                            title="Refresh (keep styles)">🔄</button>
+                    <button class="widget-action-btn refresh-full" 
+                            onclick="fullRefreshAppWidget('{{ widget.app_id }}')" 
+                            title="Full Refresh (new design)">🔄✨</button>
+                    <button class="widget-action-btn delete" 
+                            onclick="deleteAppWidget('{{ widget.app_id }}')" 
+                            title="Delete App">🗑️</button>
+                </div>
+                {% endif %}
+            </div>
+            <div class="widget-content" id="widget-{{ widget.widget_id if widget.widget_id else widget.app_id }}">
+                {{ widget.html|safe }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Create Widget Modal -->
+    <div class="modal-overlay" id="createModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Create New Widget</h2>
+            </div>
+            <div class="modal-body">
+                <label for="createPrompt">Widget Prompt:</label>
+                <textarea id="createPrompt" placeholder="Example: Display the weather widget with the weather forecast in Lviv for today and 5 days more. Use the real forecast"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-secondary" onclick="closeCreateModal()" id="createCancelBtn">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="createWidget()" id="createWidgetBtn">
+                    <span id="createWidgetBtnText">Create Widget</span>
+                    <span id="createWidgetBtnLoader" style="display: none;">⏳ Creating...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Widget Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Edit Widget</h2>
+            </div>
+            <div class="modal-body">
+                <label for="editPrompt">Widget Prompt:</label>
+                <textarea id="editPrompt"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-secondary" onclick="closeEditModal()" id="editCancelBtn">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="saveWidgetEdit()" id="editWidgetBtn">
+                    <span id="editWidgetBtnText">Save Changes</span>
+                    <span id="editWidgetBtnLoader" style="display: none;">⏳ Saving...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Widget refresh functionality
+        const refreshInterval = {{ refresh_interval }};
+        let currentEditWidgetId = null;
+        
+        // Load widget prompts data
+        let widgetPrompts = {};
+        try {
+            const promptsDataElement = document.getElementById('widget-prompts-data');
+            console.log('[INIT] Prompts data element:', promptsDataElement);
+            
+            if (promptsDataElement) {
+                const jsonText = promptsDataElement.textContent;
+                console.log('[INIT] Prompts JSON text:', jsonText);
+                widgetPrompts = JSON.parse(jsonText);
+                console.log('[INIT] Parsed widget prompts:', widgetPrompts);
+            } else {
+                console.warn('[INIT] widget-prompts-data element not found');
+            }
+        } catch (e) {
+            console.error('[INIT] Error loading widget prompts data:', e);
+            console.error('[INIT] Error details:', e.message, e.stack);
+        }
+
+        // Modal functions
+        function openCreateModal() {
+            document.getElementById('createModal').classList.add('active');
+            document.getElementById('createPrompt').value = '';
+        }
+
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.remove('active');
+        }
+
+        function openEditModal(buttonElement) {
+            console.log('[EDIT] openEditModal called', buttonElement);
+            
+            // Reset loader state
+            const editBtnText = document.getElementById('editWidgetBtnText');
+            const editBtnLoader = document.getElementById('editWidgetBtnLoader');
+            const editBtn = document.getElementById('editWidgetBtn');
+            const cancelBtn = document.getElementById('editCancelBtn');
+            if (editBtnText) editBtnText.style.display = 'inline';
+            if (editBtnLoader) {
+                editBtnLoader.style.display = 'none';
+                editBtnLoader.textContent = '⏳ Saving...';
+            }
+            if (editBtn) editBtn.disabled = false;
+            if (cancelBtn) cancelBtn.disabled = false;
+            
+            const widgetId = buttonElement.getAttribute('data-widget-id');
+            console.log('[EDIT] Widget ID from attribute:', widgetId);
+            
+            if (!widgetId) {
+                console.error('[EDIT] No widget ID provided to edit');
+                alert('Error: No widget ID');
+                return;
+            }
+            
+            // Get prompt from the loaded data
+            console.log('[EDIT] Available widget prompts:', widgetPrompts);
+            const prompt = widgetPrompts[widgetId] || '';
+            console.log('[EDIT] Prompt for widget:', widgetId, '=', prompt);
+            
+            if (!prompt) {
+                console.warn('[EDIT] No prompt found for widget:', widgetId);
+            }
+            
+            const editPromptElement = document.getElementById('editPrompt');
+            const editModalElement = document.getElementById('editModal');
+            
+            console.log('[EDIT] Edit prompt element:', editPromptElement);
+            console.log('[EDIT] Edit modal element:', editModalElement);
+            
+            if (!editPromptElement) {
+                console.error('[EDIT] editPrompt element not found');
+                alert('Error: Edit prompt field not found');
+                return;
+            }
+            
+            if (!editModalElement) {
+                console.error('[EDIT] editModal element not found');
+                alert('Error: Edit modal not found');
+                return;
+            }
+            
+            currentEditWidgetId = widgetId;
+            editPromptElement.value = prompt;
+            editModalElement.classList.add('active');
+            
+            console.log('[EDIT] Modal opened successfully for widget:', widgetId);
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+            currentEditWidgetId = null;
+        }
+
+        // Create widget
+        async function createWidget() {
+            const prompt = document.getElementById('createPrompt').value.trim();
+            if (!prompt) {
+                alert('Please enter a prompt');
+                return;
+            }
+
+            // Get button elements
+            const createBtn = document.getElementById('createWidgetBtn');
+            const createBtnText = document.getElementById('createWidgetBtnText');
+            const createBtnLoader = document.getElementById('createWidgetBtnLoader');
+            const cancelBtn = document.getElementById('createCancelBtn');
+
+            // Show loading state
+            createBtn.disabled = true;
+            createBtnText.style.display = 'none';
+            createBtnLoader.style.display = 'inline';
+            cancelBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/user-widgets/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    // Keep loading state visible while page reloads
+                    createBtnLoader.textContent = '⏳ Success! Loading...';
+                    closeCreateModal();
+                    // Reload page to show new widget
+                    window.location.reload();
+                } else {
+                    // Hide loading state on error
+                    createBtn.disabled = false;
+                    createBtnText.style.display = 'inline';
+                    createBtnLoader.style.display = 'none';
+                    cancelBtn.disabled = false;
+                    alert('Error: ' + (data.detail || 'Failed to create widget'));
+                }
+            } catch (error) {
+                console.error('Error creating widget:', error);
+                // Hide loading state on error
+                createBtn.disabled = false;
+                createBtnText.style.display = 'inline';
+                createBtnLoader.style.display = 'none';
+                cancelBtn.disabled = false;
+                alert('Error creating widget: ' + error.message);
+            }
+        }
+
+        // Edit widget
+        async function saveWidgetEdit() {
+            console.log('[SAVE EDIT] saveWidgetEdit called');
+            console.log('[SAVE EDIT] Current edit widget ID:', currentEditWidgetId);
+            
+            if (!currentEditWidgetId) {
+                console.error('[SAVE EDIT] No current edit widget ID');
+                alert('Error: No widget selected for editing');
+                return;
+            }
+
+            const editPromptElement = document.getElementById('editPrompt');
+            console.log('[SAVE EDIT] Edit prompt element:', editPromptElement);
+            
+            if (!editPromptElement) {
+                console.error('[SAVE EDIT] Edit prompt element not found');
+                alert('Error: Edit prompt field not found');
+                return;
+            }
+
+            const prompt = editPromptElement.value.trim();
+            console.log('[SAVE EDIT] Prompt value:', prompt);
+            
+            if (!prompt) {
+                alert('Please enter a prompt');
+                return;
+            }
+
+            // Get button elements
+            const editBtn = document.getElementById('editWidgetBtn');
+            const editBtnText = document.getElementById('editWidgetBtnText');
+            const editBtnLoader = document.getElementById('editWidgetBtnLoader');
+            const cancelBtn = document.getElementById('editCancelBtn');
+
+            // Show loading state
+            editBtn.disabled = true;
+            editBtnText.style.display = 'none';
+            editBtnLoader.style.display = 'inline';
+            cancelBtn.disabled = true;
+
+            try {
+                const requestBody = { widget_id: currentEditWidgetId, prompt: prompt };
+                console.log('[SAVE EDIT] Request body:', requestBody);
+                
+                const response = await fetch('/api/user-widgets/edit', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('[SAVE EDIT] Response status:', response.status, response.statusText);
+
+                const data = await response.json();
+                console.log('[SAVE EDIT] Response data:', data);
+                
+                if (response.ok) {
+                    // Keep loading state visible while page reloads
+                    editBtnLoader.textContent = '⏳ Success! Loading...';
+                    closeEditModal();
+                    // Reload page to show updated widget
+                    window.location.reload();
+                } else {
+                    // Hide loading state on error
+                    editBtn.disabled = false;
+                    editBtnText.style.display = 'inline';
+                    editBtnLoader.style.display = 'none';
+                    cancelBtn.disabled = false;
+                    const errorMsg = data.detail || 'Failed to update widget';
+                    console.error('[SAVE EDIT] Edit failed:', errorMsg);
+                    alert('Error: ' + errorMsg);
+                }
+            } catch (error) {
+                console.error('[SAVE EDIT] Exception caught:', error);
+                console.error('[SAVE EDIT] Error stack:', error.stack);
+                // Hide loading state on error
+                editBtn.disabled = false;
+                editBtnText.style.display = 'inline';
+                editBtnLoader.style.display = 'none';
+                cancelBtn.disabled = false;
+                alert('Error updating widget: ' + error.message);
+            }
+        }
+
+        // Delete widget
+        async function deleteUserWidget(widgetId) {
+            if (!confirm('Are you sure you want to delete this widget?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/user-widgets/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ widget_id: widgetId })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    // Reload page to remove deleted widget
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to delete widget'));
+                }
+            } catch (error) {
+                console.error('Error deleting widget:', error);
+                alert('Error deleting widget: ' + error.message);
+            }
+        }
+
+        // Refresh user widget (re-generate with same prompt)
+        async function refreshUserWidget(widgetId) {
+            console.log('[REFRESH] refreshUserWidget called with widgetId:', widgetId);
+            
+            if (!widgetId) {
+                console.error('[REFRESH] No widget ID provided');
+                alert('Error: No widget ID provided');
+                return;
+            }
+
+            const widgetElementId = `widget-${widgetId}`;
+            console.log('[REFRESH] Looking for widget element with ID:', widgetElementId);
+            
+            const widgetElement = document.getElementById(widgetElementId);
+            console.log('[REFRESH] Widget element found:', widgetElement);
+
+            try {
+                // Show loading state
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Refreshing...</div>';
+                    console.log('[REFRESH] Loading state shown');
+                } else {
+                    console.warn('[REFRESH] Widget element not found, cannot show loading state');
+                }
+
+                const refreshUrl = `/api/user-widgets/${widgetId}/refresh`;
+                console.log('[REFRESH] Making request to:', refreshUrl);
+
+                const response = await fetch(refreshUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                console.log('[REFRESH] Response status:', response.status, response.statusText);
+                console.log('[REFRESH] Response headers:', [...response.headers.entries()]);
+
+                const data = await response.json();
+                console.log('[REFRESH] Response data:', data);
+
+                if (response.ok) {
+                    console.log('[REFRESH] Request successful, updating widget content');
+                    if (widgetElement) {
+                        widgetElement.innerHTML = data.html;
+                        console.log('[REFRESH] Widget content updated successfully');
+                    } else {
+                        console.error('[REFRESH] Widget element not found, cannot update content');
+                    }
+                } else {
+                    const errorMsg = data.detail || 'Unknown error';
+                    console.error('[REFRESH] Request failed:', errorMsg);
+                    alert('Error refreshing widget: ' + errorMsg);
+                    if (widgetElement) {
+                        widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #f44336;">Error refreshing widget</div>';
+                    }
+                }
+            } catch (error) {
+                console.error('[REFRESH] Exception caught:', error);
+                console.error('[REFRESH] Error stack:', error.stack);
+                alert('Error refreshing widget: ' + error.message);
+                const widgetElement = document.getElementById(widgetElementId);
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #f44336;">Error: ' + error.message + '</div>';
+                }
+            }
+        }
+
+        // Full refresh user widget (re-generate with original prompt, new design)
+        async function fullRefreshUserWidget(widgetId) {
+            if (!widgetId) {
+                alert('Error: No widget ID provided');
+                return;
+            }
+
+            if (!confirm('Fully refresh this widget? This will create a completely new design.')) {
+                return;
+            }
+
+            const widgetElementId = `widget-${widgetId}`;
+            const widgetElement = document.getElementById(widgetElementId);
+
+            try {
+                // Show loading state
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Refreshing...</div>';
+                }
+
+                const response = await fetch(`/api/user-widgets/${widgetId}/full-refresh`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    if (widgetElement) {
+                        widgetElement.innerHTML = data.html;
+                    }
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to refresh widget'));
+                    if (widgetElement) {
+                        widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error refreshing widget</div>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fully refreshing user widget:', error);
+                alert('Error refreshing widget: ' + error.message);
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error refreshing widget</div>';
+                }
+            }
+        }
+
+        // Refresh app widget (re-generate with same data, keep styles)
+        async function refreshAppWidget(appId) {
+            if (!appId) {
+                alert('Error: No app ID provided');
+                return;
+            }
+
+            const widgetElementId = `widget-${appId}`;
+            const widgetElement = document.getElementById(widgetElementId);
+
+            if (!confirm('Refresh this widget with the same data but keep similar styles?')) {
+                return;
+            }
+
+            try {
+                // Show loading state
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Refreshing...</div>';
+                }
+
+                const response = await fetch(`/api/app-widgets/${appId}/refresh`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    if (widgetElement) {
+                        widgetElement.innerHTML = data.html;
+                    }
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to refresh widget'));
+                    if (widgetElement) {
+                        widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error refreshing widget</div>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error refreshing app widget:', error);
+                alert('Error refreshing widget: ' + error.message);
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error refreshing widget</div>';
+                }
+            }
+        }
+
+        // Full refresh app widget (re-generate with original prompt)
+        async function fullRefreshAppWidget(appId) {
+            if (!appId) {
+                alert('Error: No app ID provided');
+                return;
+            }
+
+            const widgetElementId = `widget-${appId}`;
+            const widgetElement = document.getElementById(widgetElementId);
+
+            if (!confirm('Fully refresh this widget? This will create a completely new design.')) {
+                return;
+            }
+
+            try {
+                // Show loading state
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Refreshing...</div>';
+                }
+
+                const response = await fetch(`/api/app-widgets/${appId}/full-refresh`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    if (widgetElement) {
+                        widgetElement.innerHTML = data.html;
+                    }
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to refresh widget'));
+                    if (widgetElement) {
+                        widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error refreshing widget</div>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fully refreshing app widget:', error);
+                alert('Error refreshing widget: ' + error.message);
+                if (widgetElement) {
+                    widgetElement.innerHTML = '<div style="text-align: center; padding: 20px; color: #d32f2f;">Error refreshing widget</div>';
+                }
+            }
+        }
+
+        // Delete app widget and unregister app
+        async function deleteAppWidget(appId) {
+            if (!appId) {
+                alert('Error: No app ID provided');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to delete this app and its widget? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/app-widgets/${appId}`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    // Reload page to remove deleted widget
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to delete app'));
+                }
+            } catch (error) {
+                console.error('Error deleting app widget:', error);
+                alert('Error deleting app: ' + error.message);
+            }
+        }
+
+        // Refresh app widget (returns cached HTML) - legacy function
+        async function refreshWidget(appId) {
+            if (!appId) return;
+            
+            try {
+                const response = await fetch(`/widget/${appId}/refresh`);
+                const data = await response.json();
+                const widgetElement = document.getElementById(`widget-${appId}`);
+                if (widgetElement) {
+                    widgetElement.innerHTML = data.html;
+                }
+            } catch (error) {
+                console.error(`Error refreshing widget ${appId}:`, error);
+            }
+        }
+
+        // Refresh all widgets on interval (only app widgets)
+        function startAutoRefresh() {
+            const widgetContainers = document.querySelectorAll('[data-app-id]');
+            
+            widgetContainers.forEach(container => {
+                const appId = container.getAttribute('data-app-id');
+                const isUserCreated = container.getAttribute('data-is-user-created') === 'true';
+                
+                // Only auto-refresh app widgets, not user widgets
+                if (appId && !isUserCreated) {
+                    setInterval(() => {
+                        refreshWidget(appId);
+                    }, refreshInterval);
+                }
+            });
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            const createModal = document.getElementById('createModal');
+            const editModal = document.getElementById('editModal');
+            
+            if (e.target === createModal) {
+                closeCreateModal();
+            }
+            if (e.target === editModal) {
+                closeEditModal();
+            }
+        });
+
+        // Start auto-refresh when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startAutoRefresh);
+        } else {
+            startAutoRefresh();
+        }
+    </script>
+</body>
+</html>
+

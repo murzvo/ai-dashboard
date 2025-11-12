@@ -1,0 +1,22 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Heroku
+.heroku/
+
+.DS_Store
+
+# Test/development files with sensitive data
+# Note: test_production.py and register_to_deployed.py use env vars for tokens
+
